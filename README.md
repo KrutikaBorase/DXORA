@@ -76,6 +76,60 @@ Invoke-RestMethod `
 Telegram post can have no public URL because Telegram private chats do not
 provide one.
 
+## Proof of working
+
+A live request was sent to `POST /posting` with the message
+`Posting API demo: https://example.com`. Mastodon and Discord accepted the
+post. Bluesky, Reddit and Telegram were intentionally left unconfigured, so they
+were reported as failed without stopping the other platforms.
+
+### Swagger UI request (`http://localhost:4000/docs`)
+
+![Swagger request](docs/proof/swagger-request.png)
+
+### Uvicorn running and JSON response with `posted_url`
+
+![Terminal and JSON response](docs/proof/terminal-json-response.png)
+
+Full response: [docs/proof/posting-response.json](docs/proof/posting-response.json)
+
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "platform": "Mastodon",
+      "status": "success",
+      "posted_url": "https://mastodon.social/@krutika_01/117627523510635019",
+      "public_access": true,
+      "date": "2026-11-16",
+      "time": "18:26:08",
+      "error": null
+    },
+    {
+      "platform": "Discord",
+      "status": "success",
+      "posted_url": "https://discord.com/channels/1571947972998987938/1571954547298144266",
+      "public_access": true,
+      "date": "2026-11-16",
+      "time": "18:26:09",
+      "error": null
+    }
+  ]
+}
+```
+
+The response also contains `failed` entries for the unconfigured platforms
+(see the full JSON file).
+
+### Mastodon post
+
+![Mastodon post](docs/proof/mastodon-post.png)
+
+### Discord message
+
+![Discord message](docs/proof/discord-message.png)
+
 ## Platform setup
 
 Copy `.env.example` to `.env`. Only set credentials for platforms you intend
