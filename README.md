@@ -4,7 +4,7 @@ A small FastAPI service that publishes one short update to five platforms:
 
 - Mastodon
 - Bluesky
-- Reddit
+- DEV Community
 - Telegram
 - Discord
 
@@ -65,13 +65,13 @@ Invoke-RestMethod `
       "error": null
     },
     {
-      "platform": "Reddit",
+      "platform": "DEV Community",
       "status": "failed",
       "posted_url": null,
       "public_access": false,
       "date": null,
       "time": null,
-      "error": "Reddit credentials and REDDIT_SUBREDDIT are not fully configured"
+      "error": "DEVTO_API_KEY is not configured"
     }
   ]
 }
@@ -84,17 +84,18 @@ provide one. Times are UTC.
 `public_access` describes visibility reported by the platform, not an
 anonymous access check. It is conservative: `false` also means public access
 could not be confirmed. Mastodon uses the returned status visibility; Telegram
-public channels and supergroups with a username get a `t.me` link. Discord
-webhook responses do not establish channel permissions, and Reddit submission
-responses do not establish community visibility or moderation status, so those
-results are reported as `false`.
+public channels and supergroups with a username get a `t.me` link. DEV
+Community is reported as public when its API confirms publication. Discord
+webhook responses do not establish channel permissions, so those results are
+reported as `false`.
 
 ## Proof of working
 
 A live request was sent to `POST /posting` with the message
 `Posting API demo: https://example.com`. Mastodon and Discord accepted the
 post. Bluesky, Reddit and Telegram were intentionally left unconfigured, so they
-were reported as failed without stopping the other platforms.
+were reported as failed without stopping the other platforms. This recording
+predates the replacement of Reddit with DEV Community.
 
 ### Swagger UI request (`http://localhost:4000/docs`)
 
@@ -148,13 +149,15 @@ Discord message links were corrected.
 ### Latest live check
 
 On 17 November 2026, a live request using `Posting API demo:
-https://example.com` returned success for Mastodon, Bluesky, Telegram and
-Discord. Reddit returned a configuration error because its credentials were
-incomplete. The Bluesky post was also checked for a clickable link facet.
+https://example.com` returned success for all five platforms. The DEV and
+Mastodon posts were reachable without signing in; the Bluesky post and its
+link facet were checked through the public API.
 
-- [Mastodon post](https://mastodon.social/@krutika_01/117631990322869482)
-- [Bluesky post](https://bsky.app/profile/kr-ut.bsky.social/post/3n2j562gz4k2a)
-- [Discord message](https://discord.com/channels/1571947972432896030/1571947972998987938/1572240432526524476)
+- [Sanitized results log](docs/proof/latest-posting-results.txt)
+- [Mastodon post](https://mastodon.social/@krutika_01/117632053988717752)
+- [Bluesky post](https://bsky.app/profile/kr-ut.bsky.social/post/3n2j62ywzxf2n)
+- [DEV Community article](https://dev.to/krutika_borse_864ff6bfe5e/posting-api-demo-46o4)
+- [Discord message](https://discord.com/channels/1571947972432896030/1571947972998987938/1572244508542771353)
 
 The Telegram message was sent to a private destination, so no public post URL
 was returned. Discord access depends on channel permissions.
@@ -164,10 +167,10 @@ was returned. Discord access depends on channel permissions.
 Copy `.env.example` to `.env`. Only set credentials for platforms you intend
 to use. Do not commit `.env` or access tokens.
 
-For Reddit, request API access and create a script application. Add its client
-ID and secret, your Reddit username and password, and a subreddit where your
-account is allowed to post to `.env`. Reddit API approval and subreddit rules
-may restrict access.
+For DEV Community, generate an API key in Settings > Extensions > DEV Community
+API Keys and set `DEVTO_API_KEY` in `.env`. Each message is published as an
+article, with a title derived from the text and the full message as its body.
+Follow DEV Community's rules, especially when posting promotional content.
 
 Official API references:
 
@@ -175,7 +178,7 @@ Official API references:
 - [Bluesky create session](https://docs.bsky.app/docs/api/com-atproto-server-create-session)
 - [Bluesky create record](https://docs.bsky.app/docs/api/com-atproto-repo-create-record)
 - [Bluesky links and rich text](https://bsky.network/docs/about-bluesky-content/post-richtext/)
-- [Reddit API submit](https://www.reddit.com/dev/api/#POST_api_submit)
+- [DEV Community article API](https://developers.forem.com/api/v1#tag/articles/operation/createArticle)
 - [Telegram Bot API sendMessage](https://core.telegram.org/bots/api#sendmessage)
 - [Discord execute webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook)
 

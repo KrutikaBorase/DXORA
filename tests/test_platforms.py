@@ -7,8 +7,8 @@ import pytest
 from app.config import Settings
 from app.platforms.bluesky import BlueskyPlatform
 from app.platforms.discord import DiscordPlatform
+from app.platforms.devto import DevToPlatform
 from app.platforms.mastodon import MastodonPlatform
-from app.platforms.reddit import RedditPlatform
 from app.platforms.telegram import TelegramPlatform
 from app.services.posting_service import publish_to_all
 
@@ -17,7 +17,7 @@ MESSAGE = "Visit https://example.com"
 PLATFORMS = [
     MastodonPlatform,
     BlueskyPlatform,
-    RedditPlatform,
+    DevToPlatform,
     TelegramPlatform,
     DiscordPlatform,
 ]
@@ -30,11 +30,7 @@ def settings() -> Settings:
         mastodon_access_token="test-token",
         bluesky_handle="user.bsky.social",
         bluesky_app_password="test-password",
-        reddit_client_id="test-id",
-        reddit_client_secret="test-secret",
-        reddit_username="test-user",
-        reddit_password="test-password",
-        reddit_subreddit="test",
+        devto_api_key="test-key",
         telegram_bot_token="test-token",
         telegram_chat_id="@example",
         discord_webhook_url="https://discord.com/api/webhooks/1/test-token",
@@ -57,12 +53,15 @@ def success_response(request: httpx.Request) -> httpx.Response:
     if path.endswith("/com.atproto.repo.createRecord"):
         assert json.loads(request.content)["record"]["text"] == MESSAGE
         return httpx.Response(200, json={"uri": "at://did:plc:abc/app.bsky.feed.post/1"})
-    if path == "/api/v1/access_token":
-        return httpx.Response(200, json={"access_token": "reddit-token"})
-    if path == "/api/submit":
-        assert parse_qs(request.content.decode())["text"] == [MESSAGE]
+    if path == "/api/articles":
+        assert request.headers["api-key"] == "test-key"
+        assert json.loads(request.content)["article"] == {
+            "title": "Visit",
+            "body_markdown": MESSAGE,
+            "published": True,
+        }
         return httpx.Response(
-            200, json={"json": {"errors": [], "data": {"url": "https://reddit.com/r/test/1"}}}
+            201, json={"url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
         )
     if path.endswith("/sendMessage"):
         assert json.loads(request.content)["text"] == MESSAGE
@@ -91,7 +90,7 @@ def success_response(request: httpx.Request) -> httpx.Response:
     [
         (MastodonPlatform, "https://mastodon.social/@user/1", True),
         (BlueskyPlatform, "https://bsky.app/profile/user.bsky.social/post/1", True),
-        (RedditPlatform, "https://reddit.com/r/test/1", False),
+        (DevToPlatform, "https://dev.to/user/post", True),
         (TelegramPlatform, "https://t.me/example/42", True),
         (DiscordPlatform, "https://discord.com/channels/10/20/30", False),
     ],
@@ -103,6 +102,45 @@ async def test_platform_success(
         result = await platform_type(settings).publish(MESSAGE, client)
     assert result.posted_url == expected_url
     assert result.public_access is public_access
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("message", "title"),
+    [
+        ("https://example.com", "Shared link"),
+        ("x" * 100 + " https://example.com", "x" * 80),
+    ],
+)
+async def test_devto_title_does_not_duplicate_cta(
+    settings: Settings, message: str, title: str
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        article = json.loads(request.content)["article"]
+        assert article == {"title": title, "body_markdown": message, "published": True}
+        return httpx.Response(
+            201, json={"url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await DevToPlatform(settings).publish(message, client)
+    assert result.posted_url == "https://dev.to/user/post"
+
+
+@pytest.mark.asyncio
+async def test_devto_unpublished_response_is_a_failure(settings: Settings, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.posting_service.build_platforms", lambda _: [DevToPlatform(settings)]
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            201, json={"url": "https://dev.to/user/draft", "published_at": None}
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        result = (await publish_to_all(MESSAGE, settings, client))[0]
+    assert result.status == "failed"
+    assert result.error == "DEV Community did not confirm a published article URL"
 
 
 @pytest.mark.asyncio
@@ -164,7 +202,7 @@ async def test_platform_failures_are_reported(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("platform_type", [BlueskyPlatform, RedditPlatform, DiscordPlatform])
+@pytest.mark.parametrize("platform_type", [BlueskyPlatform, DiscordPlatform])
 @pytest.mark.parametrize("failure", ["unauthorized", "bad_json", "missing_fields", "timeout"])
 async def test_second_request_failures_are_reported(
     settings: Settings, monkeypatch, platform_type, failure: str

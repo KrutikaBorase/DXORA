@@ -1,0 +1,9 @@
+Live request: Posting API demo: https://example.com
+Results recorded on 2026-11-17; times are UTC.
+
+Overall success: True
+{"platform":"Mastodon","status":"success","posted_url":"https://mastodon.social/@krutika_01/117632053988717752","public_access":true,"date":"2026-11-17","time":"13:38:18"}
+{"platform":"Bluesky","status":"success","posted_url":"https://bsky.app/profile/kr-ut.bsky.social/post/3n2j62ywzxf2n","public_access":true,"date":"2026-11-17","time":"13:38:19"}
+{"platform":"DEV Community","status":"success","posted_url":"https://dev.to/krutika_borse_864ff6bfe5e/posting-api-demo-46o4","public_access":true,"date":"2026-11-17","time":"13:38:19"}
+{"platform":"Telegram","status":"success","posted_url":null,"public_access":false,"date":"2026-11-17","time":"13:38:20"}
+{"platform":"Discord","status":"success","posted_url":"https://discord.com/channels/1571947972432896030/1571947972998987938/1572244508542771353","public_access":false,"date":"2026-11-17","time":"13:38:21"}

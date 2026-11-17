@@ -6,8 +6,8 @@ from app.config import Settings
 from app.platforms.base import Platform, PlatformError, PublishedPost
 from app.platforms.bluesky import BlueskyPlatform
 from app.platforms.discord import DiscordPlatform
+from app.platforms.devto import DevToPlatform
 from app.platforms.mastodon import MastodonPlatform
-from app.platforms.reddit import RedditPlatform
 from app.platforms.telegram import TelegramPlatform
 from app.schemas import PlatformResult
 
@@ -18,7 +18,7 @@ def build_platforms(settings: Settings) -> list[Platform]:
     return [
         MastodonPlatform(settings),
         BlueskyPlatform(settings),
-        RedditPlatform(settings),
+        DevToPlatform(settings),
         TelegramPlatform(settings),
         DiscordPlatform(settings),
     ]
