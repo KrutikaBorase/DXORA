@@ -106,6 +106,32 @@ async def test_platform_success(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "message",
+    ["Visit https://example.com.", "Go \u2728 https://example.com/path?a=1,2;b=3!"],
+)
+async def test_bluesky_adds_clickable_cta_with_utf8_offsets(
+    settings: Settings, message: str
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/com.atproto.server.createSession"):
+            return httpx.Response(200, json={"accessJwt": "jwt", "did": "did:plc:abc"})
+        record = json.loads(request.content)["record"]
+        facet = record["facets"][0]
+        start = facet["index"]["byteStart"]
+        end = facet["index"]["byteEnd"]
+        url = facet["features"][0]["uri"]
+        assert message.encode("utf-8")[start:end].decode("utf-8") == url
+        assert url == message[message.index("https://") : -1]
+        assert facet["features"][0]["$type"] == "app.bsky.richtext.facet#link"
+        return httpx.Response(200, json={"uri": "at://did:plc:abc/app.bsky.feed.post/1"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await BlueskyPlatform(settings).publish(message, client)
+    assert result.posted_url == "https://bsky.app/profile/user.bsky.social/post/1"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("platform_type", PLATFORMS)
 @pytest.mark.parametrize("failure", ["unauthorized", "bad_json", "missing_fields", "timeout"])
 async def test_platform_failures_are_reported(

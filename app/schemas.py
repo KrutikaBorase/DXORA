@@ -1,14 +1,11 @@
-import re
 from datetime import date as date_type
 from datetime import time as time_type
 from typing import Literal
 
-from pydantic import BaseModel, Field, HttpUrl, TypeAdapter, field_validator
+from pydantic import BaseModel, Field, field_validator
 
+from app.links import extract_cta_link
 
-URL_PATTERN = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-JOINED_URLS = re.compile(r"(?<=[,;|!?()\[\]{}])(?=https?://)", re.IGNORECASE)
-HTTP_URL_ADAPTER = TypeAdapter(HttpUrl)
 
 
 class PostingRequest(BaseModel):
@@ -17,19 +14,7 @@ class PostingRequest(BaseModel):
     @field_validator("message")
     @classmethod
     def validate_single_cta_link(cls, value: str) -> str:
-        links = [
-            link
-            for part in JOINED_URLS.split(value)
-            for link in URL_PATTERN.findall(part)
-        ]
-        if len(links) != 1:
-            raise ValueError("message must contain exactly one CTA link")
-
-        link = links[0].rstrip(".,!?;:)]}")
-        try:
-            HTTP_URL_ADAPTER.validate_python(link)
-        except ValueError as error:
-            raise ValueError("CTA link must be a valid HTTP or HTTPS URL") from error
+        extract_cta_link(value)
         return value
 
 

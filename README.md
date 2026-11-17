@@ -8,6 +8,9 @@ A small FastAPI service that publishes one short update to five platforms:
 - Telegram
 - Discord
 
+These are social and messaging platforms; this project does not integrate an
+LLM platform.
+
 Each platform is configured with environment variables. A platform without
 credentials is reported as failed while the remaining platforms are still
 attempted.
@@ -34,7 +37,9 @@ Interactive API documentation is available at
 ## Request
 
 `POST /posting` accepts one message with exactly one HTTP or HTTPS link. The
-message, including the link, must be no longer than 200 characters.
+message, including the link, must be no longer than 200 characters. Other
+links, including bare domains, are rejected. Bluesky posts include a rich-text
+facet so the CTA is clickable.
 
 ```powershell
 Invoke-RestMethod `
@@ -140,16 +145,36 @@ Discord message links were corrected.
 
 ![Discord message](docs/proof/discord-message.png)
 
+### Latest live check
+
+On 17 November 2026, a live request using `Posting API demo:
+https://example.com` returned success for Mastodon, Bluesky, Telegram and
+Discord. Reddit returned a configuration error because its credentials were
+incomplete. The Bluesky post was also checked for a clickable link facet.
+
+- [Mastodon post](https://mastodon.social/@krutika_01/117631990322869482)
+- [Bluesky post](https://bsky.app/profile/kr-ut.bsky.social/post/3n2j562gz4k2a)
+- [Discord message](https://discord.com/channels/1571947972432896030/1571947972998987938/1572240432526524476)
+
+The Telegram message was sent to a private destination, so no public post URL
+was returned. Discord access depends on channel permissions.
+
 ## Platform setup
 
 Copy `.env.example` to `.env`. Only set credentials for platforms you intend
 to use. Do not commit `.env` or access tokens.
+
+For Reddit, request API access and create a script application. Add its client
+ID and secret, your Reddit username and password, and a subreddit where your
+account is allowed to post to `.env`. Reddit API approval and subreddit rules
+may restrict access.
 
 Official API references:
 
 - [Mastodon REST API](https://docs.joinmastodon.org/methods/statuses/)
 - [Bluesky create session](https://docs.bsky.app/docs/api/com-atproto-server-create-session)
 - [Bluesky create record](https://docs.bsky.app/docs/api/com-atproto-repo-create-record)
+- [Bluesky links and rich text](https://bsky.network/docs/about-bluesky-content/post-richtext/)
 - [Reddit API submit](https://www.reddit.com/dev/api/#POST_api_submit)
 - [Telegram Bot API sendMessage](https://core.telegram.org/bots/api#sendmessage)
 - [Discord execute webhook](https://discord.com/developers/docs/resources/webhook#execute-webhook)

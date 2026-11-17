@@ -1,6 +1,7 @@
 import httpx
 
 from app.config import Settings
+from app.links import extract_cta_link
 from app.platforms.base import (
     PlatformError,
     PublishedPost,
@@ -23,6 +24,7 @@ class BlueskyPlatform:
                 "BLUESKY_HANDLE and BLUESKY_APP_PASSWORD are not configured"
             )
 
+        link = extract_cta_link(message)
         session_response = await client.post(
             f"{self.pds_url}/xrpc/com.atproto.server.createSession",
             json={"identifier": self.handle, "password": self.app_password},
@@ -39,6 +41,17 @@ class BlueskyPlatform:
                 "record": {
                     "$type": "app.bsky.feed.post",
                     "text": message,
+                    "facets": [
+                        {
+                            "index": {
+                                "byteStart": len(message[:link.start].encode("utf-8")),
+                                "byteEnd": len(message[:link.end].encode("utf-8")),
+                            },
+                            "features": [
+                                {"$type": "app.bsky.richtext.facet#link", "uri": link.url}
+                            ],
+                        }
+                    ],
                     "createdAt": now_utc().isoformat().replace("+00:00", "Z"),
                 },
             },

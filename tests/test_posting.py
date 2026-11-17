@@ -27,6 +27,10 @@ def test_request_requires_one_valid_cta_link() -> None:
         "https://example.com;https://example.org",
         "https://example.com|https://example.org",
         "(https://example.com)(https://example.org)",
+        "https://example.com www.example.org",
+        "https://example.com,example.org",
+        "example.org",
+        "https://example.com https://",
     ],
 )
 def test_request_rejects_invalid_cta_links(message: str) -> None:
@@ -54,6 +58,7 @@ def test_endpoint_returns_validation_error_without_posting(message: str) -> None
     [
         "Visit https://example.com/path?a=1,2;b=3.",
         "Visit https://example.com/?redirect=https://example.org",
+        "Contact us@example.org or visit https://example.com.",
         "x" * (200 - len(" https://example.com")) + " https://example.com",
     ],
 )
