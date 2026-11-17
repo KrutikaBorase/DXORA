@@ -31,9 +31,13 @@ class TelegramPlatform:
         if not payload.get("ok"):
             raise PlatformError(payload.get("description", "Telegram rejected message"))
 
-        # Telegram does not expose a public URL for private chats.
+        result = payload["result"]
+        chat = result["chat"]
+        message_id = result["message_id"]
+        username = chat.get("username")
+        is_public = chat.get("type") in {"channel", "supergroup"} and bool(username)
         return PublishedPost(
-            posted_url=None,
-            public_access=False,
+            posted_url=f"https://t.me/{username}/{message_id}" if is_public else None,
+            public_access=is_public,
             posted_at=now_utc(),
         )

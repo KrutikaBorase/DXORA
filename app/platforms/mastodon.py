@@ -23,12 +23,12 @@ class MastodonPlatform:
         response = await client.post(
             f"{self.base_url}/api/v1/statuses",
             headers={"Authorization": f"Bearer {self.access_token}"},
-            data={"status": message},
+            data={"status": message, "visibility": "public"},
         )
         raise_for_platform_response(response)
         payload = response.json()
         return PublishedPost(
             posted_url=payload.get("url"),
-            public_access=True,
+            public_access=payload["visibility"] in {"public", "unlisted"},
             posted_at=now_utc(),
         )

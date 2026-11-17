@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 
 from app.config import Settings
@@ -8,6 +10,8 @@ from app.platforms.mastodon import MastodonPlatform
 from app.platforms.reddit import RedditPlatform
 from app.platforms.telegram import TelegramPlatform
 from app.schemas import PlatformResult
+
+logger = logging.getLogger(__name__)
 
 
 def build_platforms(settings: Settings) -> list[Platform]:
@@ -54,10 +58,27 @@ async def publish_to_all(
         for platform in platforms:
             try:
                 published = await platform.publish(message, http_client)
-            except (PlatformError, httpx.HTTPError) as error:
+                result = result_from_success(platform, published)
+            except PlatformError as error:
                 results.append(result_from_failure(platform, error))
+            except httpx.HTTPError as error:
+                logger.warning("%s request failed: %s", platform.name, type(error).__name__)
+                results.append(
+                    result_from_failure(
+                        platform, PlatformError(f"HTTP request failed: {type(error).__name__}")
+                    )
+                )
+            except Exception as error:
+                logger.error(
+                    "%s failed unexpectedly: %s", platform.name, type(error).__name__
+                )
+                results.append(
+                    result_from_failure(
+                        platform, PlatformError(f"Unexpected error: {type(error).__name__}")
+                    )
+                )
             else:
-                results.append(result_from_success(platform, published))
+                results.append(result)
     finally:
         if owns_client:
             await http_client.aclose()

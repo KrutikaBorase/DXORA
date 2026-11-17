@@ -74,7 +74,15 @@ Invoke-RestMethod `
 
 `success` is true when at least one platform accepts the post. A successful
 Telegram post can have no public URL because Telegram private chats do not
-provide one.
+provide one. Times are UTC.
+
+`public_access` describes visibility reported by the platform, not an
+anonymous access check. It is conservative: `false` also means public access
+could not be confirmed. Mastodon uses the returned status visibility; Telegram
+public channels and supergroups with a username get a `t.me` link. Discord
+webhook responses do not establish channel permissions, and Reddit submission
+responses do not establish community visibility or moderation status, so those
+results are reported as `false`.
 
 ## Proof of working
 
@@ -121,6 +129,8 @@ Full response: [docs/proof/posting-response.json](docs/proof/posting-response.js
 
 The response also contains `failed` entries for the unconfigured platforms
 (see the full JSON file).
+This is a historical response, recorded before public-access reporting and
+Discord message links were corrected.
 
 ### Mastodon post
 

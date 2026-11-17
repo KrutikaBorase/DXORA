@@ -66,11 +66,11 @@ class RedditPlatform:
         errors = post_response.json().get("json", {}).get("errors", [])
         if errors:
             raise PlatformError("; ".join(str(error) for error in errors))
-        thing_id = post_response.json().get("data", {}).get("url")
-        if not thing_id:
+        post_url = post_response.json().get("json", {}).get("data", {}).get("url")
+        if not post_url:
             raise PlatformError("Reddit response did not include a post URL")
         return PublishedPost(
-            posted_url=thing_id,
-            public_access=True,
+            posted_url=post_url,
+            public_access=False,
             posted_at=now_utc(),
         )
