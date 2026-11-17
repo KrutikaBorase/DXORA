@@ -53,6 +53,16 @@ def success_response(request: httpx.Request) -> httpx.Response:
     if path.endswith("/com.atproto.repo.createRecord"):
         assert json.loads(request.content)["record"]["text"] == MESSAGE
         return httpx.Response(200, json={"uri": "at://did:plc:abc/app.bsky.feed.post/1"})
+    if path.endswith("/app.bsky.feed.getPostThread"):
+        assert request.url.params["uri"] == "at://did:plc:abc/app.bsky.feed.post/1"
+        return httpx.Response(
+            200, json={"thread": {"post": {"uri": "at://did:plc:abc/app.bsky.feed.post/1"}}}
+        )
+    if path == "/api/articles/1":
+        assert "api-key" not in request.headers
+        return httpx.Response(
+            200, json={"id": 1, "url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
+        )
     if path == "/api/articles":
         assert request.headers["api-key"] == "test-key"
         assert json.loads(request.content)["article"] == {
@@ -61,7 +71,7 @@ def success_response(request: httpx.Request) -> httpx.Response:
             "published": True,
         }
         return httpx.Response(
-            201, json={"url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
+            201, json={"id": 1, "url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
         )
     if path.endswith("/sendMessage"):
         assert json.loads(request.content)["text"] == MESSAGE
@@ -116,10 +126,14 @@ async def test_devto_title_does_not_duplicate_cta(
     settings: Settings, message: str, title: str
 ) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200, json={"id": 1, "url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
+            )
         article = json.loads(request.content)["article"]
         assert article == {"title": title, "body_markdown": message, "published": True}
         return httpx.Response(
-            201, json={"url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
+            201, json={"id": 1, "url": "https://dev.to/user/post", "published_at": "2026-11-17T00:00:00Z"}
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
@@ -154,6 +168,10 @@ async def test_bluesky_adds_clickable_cta_with_utf8_offsets(
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/com.atproto.server.createSession"):
             return httpx.Response(200, json={"accessJwt": "jwt", "did": "did:plc:abc"})
+        if request.url.path.endswith("/app.bsky.feed.getPostThread"):
+            return httpx.Response(
+                200, json={"thread": {"post": {"uri": "at://did:plc:abc/app.bsky.feed.post/1"}}}
+            )
         record = json.loads(request.content)["record"]
         facet = record["facets"][0]
         start = facet["index"]["byteStart"]
@@ -167,6 +185,32 @@ async def test_bluesky_adds_clickable_cta_with_utf8_offsets(
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         result = await BlueskyPlatform(settings).publish(message, client)
     assert result.posted_url == "https://bsky.app/profile/user.bsky.social/post/1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("platform_type", [BlueskyPlatform, DevToPlatform])
+@pytest.mark.parametrize("failure", ["not_found", "bad_json", "timeout"])
+async def test_failed_public_check_does_not_change_posting_success(
+    settings: Settings, platform_type, failure: str, caplog
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        is_public_check = (
+            request.url.path.endswith("/app.bsky.feed.getPostThread")
+            or request.url.path == "/api/articles/1"
+        )
+        if not is_public_check:
+            return success_response(request)
+        if failure == "not_found":
+            return httpx.Response(404)
+        if failure == "bad_json":
+            return httpx.Response(200, content=b"not JSON")
+        raise httpx.ReadTimeout("timeout", request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await platform_type(settings).publish(MESSAGE, client)
+    assert result.posted_url
+    assert result.public_access is False
+    assert "visibility could not be confirmed" in caplog.text
 
 
 @pytest.mark.asyncio

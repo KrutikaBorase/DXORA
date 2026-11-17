@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     discord_webhook_url: str | None = None
 
+    gemini_api_key: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

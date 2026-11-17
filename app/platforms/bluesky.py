@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 
 from app.config import Settings
@@ -5,9 +7,12 @@ from app.links import extract_cta_link
 from app.platforms.base import (
     PlatformError,
     PublishedPost,
+    fetch_public_json,
     now_utc,
     raise_for_platform_response,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BlueskyPlatform:
@@ -59,8 +64,19 @@ class BlueskyPlatform:
         raise_for_platform_response(record_response)
         uri = record_response.json()["uri"]
         rkey = uri.rsplit("/", 1)[-1]
+        public_post = await fetch_public_json(
+            client,
+            self.name,
+            "https://public.api.bsky.app/xrpc/app.bsky.feed.getPostThread",
+            params={"uri": uri},
+        )
+        thread = public_post.get("thread") if public_post else None
+        post = thread.get("post") if isinstance(thread, dict) else None
+        public_access = isinstance(post, dict) and post.get("uri") == uri
+        if not public_access:
+            logger.warning("%s post visibility could not be confirmed", self.name)
         return PublishedPost(
             posted_url=f"https://bsky.app/profile/{self.handle}/post/{rkey}",
-            public_access=True,
+            public_access=public_access,
             posted_at=now_utc(),
         )

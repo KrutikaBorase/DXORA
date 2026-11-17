@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator
 from app.links import extract_cta_link
 
 
-
 class PostingRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=200)
 
@@ -28,6 +27,13 @@ class PlatformResult(BaseModel):
     error: str | None = None
 
 
+class GeminiFeedback(BaseModel):
+    status: Literal["success", "failed", "not_configured"]
+    feedback: str | None = None
+    error: str | None = None
+
+
 class PostingResponse(BaseModel):
     success: bool
     results: list[PlatformResult]
+    gemini: GeminiFeedback

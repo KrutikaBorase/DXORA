@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import httpx
@@ -44,6 +45,26 @@ def result_from_failure(platform: Platform, error: Exception) -> PlatformResult:
     )
 
 
+async def publish_to_platform(
+    platform: Platform, message: str, client: httpx.AsyncClient
+) -> PlatformResult:
+    try:
+        published = await platform.publish(message, client)
+        return result_from_success(platform, published)
+    except PlatformError as error:
+        return result_from_failure(platform, error)
+    except httpx.HTTPError as error:
+        logger.warning("%s request failed: %s", platform.name, type(error).__name__)
+        return result_from_failure(
+            platform, PlatformError(f"HTTP request failed: {type(error).__name__}")
+        )
+    except Exception as error:
+        logger.error("%s failed unexpectedly: %s", platform.name, type(error).__name__)
+        return result_from_failure(
+            platform, PlatformError(f"Unexpected error: {type(error).__name__}")
+        )
+
+
 async def publish_to_all(
     message: str,
     settings: Settings,
@@ -52,35 +73,10 @@ async def publish_to_all(
     platforms = build_platforms(settings)
     owns_client = client is None
     http_client = client or httpx.AsyncClient(timeout=20.0)
-    results: list[PlatformResult] = []
-
     try:
-        for platform in platforms:
-            try:
-                published = await platform.publish(message, http_client)
-                result = result_from_success(platform, published)
-            except PlatformError as error:
-                results.append(result_from_failure(platform, error))
-            except httpx.HTTPError as error:
-                logger.warning("%s request failed: %s", platform.name, type(error).__name__)
-                results.append(
-                    result_from_failure(
-                        platform, PlatformError(f"HTTP request failed: {type(error).__name__}")
-                    )
-                )
-            except Exception as error:
-                logger.error(
-                    "%s failed unexpectedly: %s", platform.name, type(error).__name__
-                )
-                results.append(
-                    result_from_failure(
-                        platform, PlatformError(f"Unexpected error: {type(error).__name__}")
-                    )
-                )
-            else:
-                results.append(result)
+        return await asyncio.gather(
+            *(publish_to_platform(platform, message, http_client) for platform in platforms)
+        )
     finally:
         if owns_client:
             await http_client.aclose()
-
-    return results

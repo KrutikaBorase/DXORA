@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 
 from app.config import Settings
@@ -5,9 +7,12 @@ from app.links import extract_cta_link
 from app.platforms.base import (
     PlatformError,
     PublishedPost,
+    fetch_public_json,
     now_utc,
     raise_for_platform_response,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DevToPlatform:
@@ -41,8 +46,22 @@ class DevToPlatform:
         payload = response.json()
         if not payload.get("url") or not payload.get("published_at"):
             raise PlatformError("DEV Community did not confirm a published article URL")
+        article_id = payload.get("id")
+        public_post = None
+        if isinstance(article_id, int) and not isinstance(article_id, bool) and article_id > 0:
+            public_post = await fetch_public_json(
+                client, self.name, f"https://dev.to/api/articles/{article_id}"
+            )
+        public_access = bool(
+            public_post
+            and public_post.get("id") == article_id
+            and public_post.get("url") == payload["url"]
+            and public_post.get("published_at")
+        )
+        if not public_access:
+            logger.warning("%s article visibility could not be confirmed", self.name)
         return PublishedPost(
             posted_url=payload["url"],
-            public_access=True,
+            public_access=public_access,
             posted_at=now_utc(),
         )

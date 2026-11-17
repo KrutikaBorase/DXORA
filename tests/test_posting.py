@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 
 import pytest
@@ -31,6 +32,9 @@ def test_request_requires_one_valid_cta_link() -> None:
         "https://example.com,example.org",
         "example.org",
         "https://example.com https://",
+        "https://example.com https://example.com",
+        "ftp://example.org",
+        "www.example.org",
     ],
 )
 def test_request_rejects_invalid_cta_links(message: str) -> None:
@@ -119,3 +123,38 @@ async def test_unexpected_error_is_isolated_and_logged(monkeypatch, caplog) -> N
     assert [result.status for result in results] == ["failed", "success"]
     assert results[0].error == "Unexpected error: KeyError"
     assert "Broken failed unexpectedly: KeyError" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_platforms_run_concurrently_and_keep_result_order(monkeypatch) -> None:
+    ready = asyncio.Event()
+    entered: list[str] = []
+
+    class WaitingPlatform:
+        def __init__(self, name: str, fail: bool = False) -> None:
+            self.name = name
+            self.fail = fail
+
+        async def publish(self, message: str, client: object) -> PublishedPost:
+            entered.append(self.name)
+            if len(entered) == 3:
+                ready.set()
+            await ready.wait()
+            if self.fail:
+                raise PlatformError("Test failure")
+            return await WorkingPlatform().publish(message, client)
+
+    monkeypatch.setattr(
+        "app.services.posting_service.build_platforms",
+        lambda settings: [
+            WaitingPlatform("First"),
+            WaitingPlatform("Second", fail=True),
+            WaitingPlatform("Third"),
+        ],
+    )
+    results = await asyncio.wait_for(
+        publish_to_all("Visit https://example.com", Settings(_env_file=None)),
+        timeout=2,
+    )
+    assert [result.platform for result in results] == ["First", "Second", "Third"]
+    assert [result.status for result in results] == ["success", "failed", "success"]
